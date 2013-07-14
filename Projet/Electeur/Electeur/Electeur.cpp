@@ -10,6 +10,7 @@ DWORD WINAPI Electeur::initThread()
 	Electeur* e = new Electeur();
 	e->initiateVote();
 	delete e;
+	return EXIT_SUCCESS;
 }
 
 void Electeur::initiateVote()
@@ -17,7 +18,7 @@ void Electeur::initiateVote()
 	SOCKET ourSocket;
 	int nbCandidates = 1; // nombre de candidats minimum
 
-	srand(time(NULL));
+	srand((unsigned int) time(NULL));
 
 	createServerConnection(ourSocket);
 
@@ -38,7 +39,7 @@ void Electeur::createServerConnection(SOCKET &ourSocket)
 	int returnValue;
 	WSADATA wsaData;
 	int random;
-	char* port;
+	char* port = new char[256];
 	char errorMsg[100];
 
 	ZeroMemory( &hints, sizeof(hints));
@@ -58,12 +59,12 @@ void Electeur::createServerConnection(SOCKET &ourSocket)
 	ourSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (ourSocket == INVALID_SOCKET)
 	{
-		sprintf(errorMsg, "Erreur de socket(): %ld\n\n", WSAGetLastError());
+		sprintf_s(errorMsg, "Erreur de socket(): %ld\n\n", WSAGetLastError());
 		
 		cleanup(errorMsg);
 	}
 
-	std::cout << "Veuillez entrer l'adresse IP du serveur";
+	std::cout << "Veuillez entrer l'adresse IP du serveur\n";
 
 	std::cin >> sip;
 
@@ -107,7 +108,7 @@ void Electeur::createServerConnection(SOCKET &ourSocket)
 
 		if (returnValue == SOCKET_ERROR)
 		{
-			sprintf(errorMsg, "Impossible de se connecter au serveur %s sur le port %s\n\n", inet_ntoa(adresse->sin_addr), port);
+			sprintf_s(errorMsg, "Impossible de se connecter au serveur %s sur le port %s\n\n", inet_ntoa(adresse->sin_addr), port);
 			freeaddrinfo(ip);
 
 			cleanup(errorMsg);
@@ -115,6 +116,8 @@ void Electeur::createServerConnection(SOCKET &ourSocket)
 	}while(returnValue == SOCKET_ERROR);
 
 	freeaddrinfo(ip);
+
+	delete port;
 }
 
 void Electeur::getCandidateList(const SOCKET &ourSocket, int& nbCandidates)
@@ -126,7 +129,7 @@ void Electeur::getCandidateList(const SOCKET &ourSocket, int& nbCandidates)
 	if (returnValue <= 0)
 	{
 		char errorMsg[100];
-		sprintf(errorMsg, "Erreur de reception : %d\n", WSAGetLastError());
+		sprintf_s(errorMsg, "Erreur de reception : %d\n", WSAGetLastError());
 		cleanup(errorMsg);
     }
 

@@ -1,11 +1,10 @@
-#include <windows.h>
+#include <WS2tcpip.h>
+#include <WinSock2.h>
 #include <string>
 #include <fstream>
 #include <stdio.h>
 #include <cstdlib>
 #include <iostream>
-#include <winsock2.h>
-#include <ws2tcpip.h>
 
 // link with Ws2_32.lib
 #pragma comment( lib, "ws2_32.lib" )
@@ -15,17 +14,17 @@
 #define MAX_SOCKETS 50
 
 struct _infoSocket {
-	sockaddr_in sockAddrIn;
+	sockaddr_in* sockAddrIn;
 	SOCKET socket;
 } typedef infoSocket, *pInfoSocket;
 
 const std::string CANDIDATES_FILE = "ListeCandidats1.txt";
 
 void readCandidateFile();
-void initialiseTimer(DWORD&);
+void initialiseTimer();
 DWORD WINAPI timer();
-void terminate();
-void initialiseConnection(SOCKET[], WSADATA);
+void terminateServer();
+void initialiseConnection();
 void writeLog(std::string);
 DWORD WINAPI acceptConnection(void*);
 DWORD WINAPI processVote(void*);
@@ -43,13 +42,15 @@ DWORD incomingTID[MAX_SOCKETS];
 DWORD processingTID[MAX_SOCKETS];
 int candidatesScore[MAX_CANDIDATES];
 HANDLE semCandidatesScore;
+HANDLE timerThread;
 
 int main()
 {
 	readCandidateFile();
 	
-	DWORD timerTID;
-	initialiseTimer(timerTID);
+	initialiseTimer();
+
+	initialiseConnection();
 
 	semCandidatesScore = CreateSemaphore(NULL, 1, 1, NULL);
 
@@ -58,7 +59,7 @@ int main()
 		CreateThread(0, 0, acceptConnection, (void*)i, 0, &incomingTID[i]);
 	}
 
-	WaitForSingleObject(&timerTID, INFINITE);
+	WaitForSingleObject(timerThread, INFINITE);
 
 	return EXIT_SUCCESS;
 }
@@ -85,9 +86,9 @@ void readCandidateFile()
 	}
 }
 
-void initialiseTimer(DWORD& timerTID)
+void initialiseTimer()
 {
-	CreateThread (NULL, 0, (LPTHREAD_START_ROUTINE)timer, NULL, 0, &timerTID);
+	timerThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)timer, NULL, 0, NULL);
 
 	SYSTEMTIME time;
 	GetLocalTime(&time);
@@ -156,11 +157,13 @@ void writeResults()
 DWORD WINAPI timer()
 {
 	Sleep(MAX_TIME_MINUTES * 60 * 1000);
+	printf("done sleeping");
+	terminateServer();
 
-	terminate();
+	return EXIT_SUCCESS;
 }
 
-void terminate()
+void terminateServer()
 {
 	// TODO Close handles...
 	for(int i = 0; i <= MAX_SOCKETS; ++i)
@@ -179,7 +182,7 @@ void terminate()
 	writeResults();
 }
 
-void initialiseConnection(SOCKET serverSocket[], WSADATA wsaData)
+void initialiseConnection()
 {
 	int iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
 
@@ -190,11 +193,11 @@ void initialiseConnection(SOCKET serverSocket[], WSADATA wsaData)
 	}
 
 	// Recuperation de l'adresse locale
-	hostent *thisHost = (hostent*) gethostbyname("");
+	hostent *thisHost = (hostent*) gethostbyname("localhost");
 
 	char* ip = inet_ntoa(*(struct in_addr*) *thisHost->h_addr_list);
 
-	printf("Adresse locale trouvee %s : \n\n",ip);
+	printf("Adresse locale trouvee %s : \n\n", ip);
 
 	for(int i = 0; i <= MAX_SOCKETS; ++i)
 	{
@@ -246,16 +249,19 @@ DWORD WINAPI acceptConnection(void* id)
 
 	while (true)
 	{
-		pInfoSocket in;
+		sockaddr_in sinRemote;
+		pInfoSocket in = NULL;
 		
-		int nAddrSize = sizeof(in->sockAddrIn);
+		int nAddrSize = sizeof(sinRemote);
 
 		// Create a SOCKET for accepting incoming requests. Accept the connection.
-		in->socket = accept(serverSocket[(int)id], (sockaddr*)&in->sockAddrIn, &nAddrSize);
+		in->socket = accept(serverSocket[(int)id], (sockaddr*)&sinRemote, &nAddrSize);
+
+		in->sockAddrIn = &sinRemote;
 
 		if (in->socket != INVALID_SOCKET)
 		{
-			printf("Connection acceptee de : %s:%s.\n", inet_ntoa(in->sockAddrIn.sin_addr), ntohs(in->sockAddrIn.sin_port));
+			printf("Connection acceptee de : %s:%s.\n", inet_ntoa(in->sockAddrIn->sin_addr), ntohs(in->sockAddrIn->sin_port));
 
 			CreateThread(0, 0, processVote, in, 0, &processingTID[(int)id]);
 		}
@@ -264,6 +270,8 @@ DWORD WINAPI acceptConnection(void* id)
 			std::cerr << "Echec d'une connection" << std::endl;
 		}
 	}
+
+	return EXIT_SUCCESS;
 }
 
 DWORD WINAPI processVote(LPVOID lpv)
@@ -271,6 +279,8 @@ DWORD WINAPI processVote(LPVOID lpv)
 	pInfoSocket info = (pInfoSocket) lpv;
 	sendCandidateList(info);
 	receiveVote(info);
+
+	return EXIT_SUCCESS;
 }
 
 void sendCandidateList(pInfoSocket info)
@@ -320,8 +330,8 @@ void receiveVote(pInfoSocket info)
 	SYSTEMTIME time;
 	GetLocalTime(&time);
 
-	sprintf(buffer, "%s:%s %.4d-%.4d-%.4d %d::%d::%d %s", inet_ntoa(info->sockAddrIn.sin_addr), 
-			ntohs(info->sockAddrIn.sin_port), time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond, valid);
+	sprintf(buffer, "%s:%s %.4d-%.4d-%.4d %d::%d::%d %s", inet_ntoa(info->sockAddrIn->sin_addr), 
+			ntohs(info->sockAddrIn->sin_port), time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond, valid);
 	
 	writeLog(buffer);
 

@@ -1,9 +1,11 @@
-#include <Windows.h>
-#include <iostream>
-#include <WinSock2.h>
 #include <WS2tcpip.h>
+#include <WinSock2.h>
+#include <iostream>
 #include <string>
 #include <time.h>
+
+// link with Ws2_32.lib
+#pragma comment( lib, "ws2_32.lib" )
 
 class Electeur
 {
