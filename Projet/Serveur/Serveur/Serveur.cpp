@@ -8,6 +8,7 @@
 
 // link with Ws2_32.lib
 #pragma comment( lib, "ws2_32.lib" )
+#pragma warning(disable: 4996)
 
 #define MAX_TIME_MINUTES 5
 #define MAX_CANDIDATES 50
@@ -250,18 +251,21 @@ DWORD WINAPI acceptConnection(void* id)
 	while (true)
 	{
 		sockaddr_in sinRemote;
-		pInfoSocket in = NULL;
+		pInfoSocket in = new infoSocket;
 		
 		int nAddrSize = sizeof(sinRemote);
 
 		// Create a SOCKET for accepting incoming requests. Accept the connection.
-		in->socket = accept(serverSocket[(int)id], (sockaddr*)&sinRemote, &nAddrSize);
-
+		SOCKET ourSocket = accept(serverSocket[(int)id], (sockaddr*)&sinRemote, &nAddrSize);
+		
 		in->sockAddrIn = &sinRemote;
+		in->socket = ourSocket;
 
 		if (in->socket != INVALID_SOCKET)
 		{
+			//printf("Connection acceptee de : %s:%s.\n", inet_ntoa(in->sockAddrIn->sin_addr), ntohs(in->sockAddrIn->sin_port));
 			printf("Connection acceptee de : %s:%s.\n", inet_ntoa(in->sockAddrIn->sin_addr), ntohs(in->sockAddrIn->sin_port));
+			//TODO erreur quand vient le temps d'afficher, à revoir plus tard...
 
 			CreateThread(0, 0, processVote, in, 0, &processingTID[(int)id]);
 		}
@@ -276,7 +280,7 @@ DWORD WINAPI acceptConnection(void* id)
 
 DWORD WINAPI processVote(LPVOID lpv)
 {
-	pInfoSocket info = (pInfoSocket) lpv;
+	pInfoSocket info = (infoSocket*) lpv;
 	sendCandidateList(info);
 	receiveVote(info);
 
@@ -286,6 +290,7 @@ DWORD WINAPI processVote(LPVOID lpv)
 void sendCandidateList(pInfoSocket info)
 {
 	std::string buffer;
+	const char* cBuffer;
 
 	for (int i = 0; i < nbCandidates; i++)
 	{
@@ -294,8 +299,9 @@ void sendCandidateList(pInfoSocket info)
 	}
 
 	buffer += ';';
+	cBuffer = buffer.c_str();
 
-	send(info->socket, buffer.c_str(), sizeof(buffer), 0);
+	send(info->socket, cBuffer, sizeof(cBuffer), 0);
 
 	// TODO add return value verification
 }
@@ -330,8 +336,10 @@ void receiveVote(pInfoSocket info)
 	SYSTEMTIME time;
 	GetLocalTime(&time);
 
+	buffer = "test";
+	/* TODO plante ici ... problème avec le info->(member)->wtv
 	sprintf(buffer, "%s:%s %.4d-%.4d-%.4d %d::%d::%d %s", inet_ntoa(info->sockAddrIn->sin_addr), 
-			ntohs(info->sockAddrIn->sin_port), time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond, valid);
+			ntohs(info->sockAddrIn->sin_port), time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond, valid);*/
 	
 	writeLog(buffer);
 

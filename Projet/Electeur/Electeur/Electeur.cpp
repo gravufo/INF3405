@@ -65,8 +65,8 @@ void Electeur::createServerConnection(SOCKET &ourSocket)
 	}
 
 	std::cout << "Veuillez entrer l'adresse IP du serveur\n";
-
-	std::cin >> sip;
+	/*std::cin >> sip; TODO : ne pas oublier de remettre cette ligne sans commentaire et effacer la suivante*/
+	sip = "127.0.0.1"; // LOCALHOST
 
 	do
 	{

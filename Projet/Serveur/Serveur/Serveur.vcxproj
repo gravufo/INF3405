@@ -78,6 +78,9 @@
   <ItemGroup>
     <ClCompile Include="Serveur.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="ListeCandidats1.txt" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
