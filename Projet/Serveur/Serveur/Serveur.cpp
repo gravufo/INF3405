@@ -10,7 +10,7 @@
 #pragma comment( lib, "ws2_32.lib" )
 #pragma warning(disable: 4996)
 
-#define MAX_TIME_MINUTES 5
+#define MAX_TIME_MINUTES 1
 #define MAX_CANDIDATES 50
 #define MAX_SOCKETS 50
 
@@ -20,6 +20,8 @@ struct _infoSocket {
 } typedef infoSocket, *pInfoSocket;
 
 const std::string CANDIDATES_FILE = "ListeCandidats1.txt";
+const std::string LOG_FILE = "log.txt";
+const std::string RESULTS_FILE = "resultats.txt";
 
 void readCandidateFile();
 void initialiseTimer();
@@ -39,8 +41,8 @@ std::ofstream logFile;
 HANDLE semLogFile;
 SOCKET serverSocket[MAX_SOCKETS];
 WSADATA wsaData;
-DWORD incomingTID[MAX_SOCKETS];
-DWORD processingTID[MAX_SOCKETS];
+HANDLE incomingTID[MAX_SOCKETS];
+HANDLE processingTID[MAX_SOCKETS];
 int candidatesScore[MAX_CANDIDATES];
 HANDLE semCandidatesScore;
 HANDLE timerThread;
@@ -55,9 +57,22 @@ int main()
 
 	semCandidatesScore = CreateSemaphore(NULL, 1, 1, NULL);
 
+	semLogFile = CreateSemaphore(NULL, 1, 1, NULL);
+
+	if(semLogFile == NULL) 
+	{
+		printf("CreateSemaphore error: %d\n", GetLastError());
+		exit(EXIT_FAILURE);
+	}
+
+	for(int i = 0; i < MAX_CANDIDATES; ++i)
+	{
+		candidatesScore[i] = 0;
+	}
+
 	for(int i = 0; i <= MAX_SOCKETS; ++i)
 	{
-		CreateThread(0, 0, acceptConnection, (void*)i, 0, &incomingTID[i]);
+		incomingTID[i] = CreateThread(0, 0, acceptConnection, (void*)i, 0, 0);
 	}
 
 	WaitForSingleObject(timerThread, INFINITE);
@@ -101,25 +116,15 @@ void initialiseTimer()
 
 void writeLog(std::string str)
 {
-	if(!logFile.is_open())
-	{
-		logFile.open("log.txt");
-
-		semLogFile = CreateSemaphore(NULL, 1, 1, NULL);
-
-		if(semLogFile == NULL) 
-		{
-
-			printf("CreateSemaphore error: %d\n", GetLastError());
-			exit(EXIT_FAILURE);
-		}
-	}
+	logFile.open(LOG_FILE);
 
 	if(!logFile.fail())
 	{
 		WaitForSingleObject(semLogFile, INFINITE);
 
 		logFile << str;
+
+		logFile.close();
 
 		ReleaseSemaphore(semLogFile, 1, NULL);
 	}
@@ -130,7 +135,7 @@ void writeResults()
 	char* buffer = new char[256];
 	std::ofstream resultsFile;
 
-	resultsFile.open("resultats.txt");
+	resultsFile.open(RESULTS_FILE);
 
 	if(!resultsFile.fail())
 	{
@@ -138,7 +143,7 @@ void writeResults()
 		// TODO : find the winner and display the results (both in the file AND the server console)
 		for (int i = 0; i < nbCandidates; i++)
 		{
-			sprintf(buffer, "Candidat #%d : %s\tNombre de votes :\t%d\n", i+1, candidates[i], candidatesScore[i]);
+			sprintf(buffer, "Candidat #%d : %s\tNombre de votes :\t%d\n", i + 1, candidates[i], candidatesScore[i]);
 			resultsFile << buffer;
 			printf(buffer);
 
@@ -264,10 +269,14 @@ DWORD WINAPI acceptConnection(void* id)
 		if (in->socket != INVALID_SOCKET)
 		{
 			//printf("Connection acceptee de : %s:%s.\n", inet_ntoa(in->sockAddrIn->sin_addr), ntohs(in->sockAddrIn->sin_port));
-			printf("Connection acceptee de : %s:%s.\n", inet_ntoa(in->sockAddrIn->sin_addr), ntohs(in->sockAddrIn->sin_port));
+			const char* ipAddress = inet_ntoa(in->sockAddrIn->sin_addr);
+			u_short port = ntohs(in->sockAddrIn->sin_port);
+
+			//printf("Connection acceptee de : %s:%u.\n", ipAddress, port);
+			std::cout << "Connection acceptee de : " << ipAddress << ":" << port << std::endl;
 			//TODO erreur quand vient le temps d'afficher, à revoir plus tard...
 
-			CreateThread(0, 0, processVote, in, 0, &processingTID[(int)id]);
+			processingTID[(int)id] = CreateThread(0, 0, processVote, in, 0, 0);
 		}
 		else
 		{
@@ -290,7 +299,7 @@ DWORD WINAPI processVote(LPVOID lpv)
 void sendCandidateList(pInfoSocket info)
 {
 	std::string buffer;
-	const char* cBuffer;
+	char* cBuffer = new char[256];
 
 	for (int i = 0; i < nbCandidates; i++)
 	{
@@ -299,27 +308,28 @@ void sendCandidateList(pInfoSocket info)
 	}
 
 	buffer += ';';
-	cBuffer = buffer.c_str();
+	cBuffer = const_cast<char*>(buffer.c_str());
+	int sizeBuffer = buffer.length();
 
-	send(info->socket, cBuffer, sizeof(cBuffer), 0);
+	send(info->socket, cBuffer, sizeBuffer, 0);
 
 	// TODO add return value verification
 }
 
 void receiveVote(pInfoSocket info)
 {
-	char* buffer = new char[256];
-	char* valid = new char[256];
+	char* buffer = new char[2];
+	char* valid = new char[20];
 
 	int vote;
 
-	recv(info->socket, buffer, sizeof(buffer), 0);
+	recv(info->socket, buffer, sizeof(char[2]), 0);
 	// TODO add return value verification
 
 	vote = atoi(buffer);
 
 	// Enregistrement du vote
-	if( vote > 0 && vote < nbCandidates )
+	if( vote >= 0 && vote < nbCandidates )
 	{
 		WaitForSingleObject(semCandidatesScore, INFINITE);
 		++candidatesScore[vote];
@@ -331,18 +341,30 @@ void receiveVote(pInfoSocket info)
 		valid = "VOTE NON-VALIDE";
 	}
 
-	send(info->socket, valid, sizeof(valid), 0);
+	send(info->socket, valid, sizeof(char[20]), 0);
 	
 	SYSTEMTIME time;
 	GetLocalTime(&time);
 
-	buffer = "test";
+	char port[NI_MAXSERV];
+	char* endPtr;
+
+	getnameinfo((struct sockaddr*)info->sockAddrIn, sizeof(struct sockaddr), NULL, NULL, port, NI_MAXSERV, NULL);
+	
+	//buffer = "test";
 	/* TODO plante ici ... problème avec le info->(member)->wtv
 	sprintf(buffer, "%s:%s %.4d-%.4d-%.4d %d::%d::%d %s", inet_ntoa(info->sockAddrIn->sin_addr), 
 			ntohs(info->sockAddrIn->sin_port), time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond, valid);*/
-	
+	sprintf(buffer, "%s:%ld %.2d-%.2d-%.2d %.2d:%.2d:%.2d %s\n", inet_ntoa(info->sockAddrIn->sin_addr), 
+			strtol(port, &endPtr, 10), time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond, valid);
+
 	writeLog(buffer);
 
-	delete buffer;
-	delete valid;
+	// for debug 
+	printf(buffer);
 }
+
+// TODO : close all the files
+// make sure all pointers are changed (if possible) to non-dynamic solutions to prevent memory leaks
+// verify why the port is fucked up <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< mémé arrows
+// Verifier la deconnexion du client/serveur

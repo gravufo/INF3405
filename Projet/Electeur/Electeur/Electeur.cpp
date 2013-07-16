@@ -124,7 +124,7 @@ void Electeur::getCandidateList(const SOCKET &ourSocket, int& nbCandidates)
 {
 	char* buffer = new char[256];
 
-	int returnValue = recv(ourSocket, buffer, sizeof(buffer), 0);
+	int returnValue = recv(ourSocket, buffer, sizeof(char[256]), 0);
 	
 	if (returnValue <= 0)
 	{
@@ -140,7 +140,7 @@ void Electeur::getCandidateList(const SOCKET &ourSocket, int& nbCandidates)
 
 		while(buffer[characterCounter] != ' ')
 		{
-			currentName += buffer[characterCounter];
+			currentName += buffer[characterCounter++];
 		}
 
 		std::cout << "(" << nbCandidates << ") : " << currentName << std::endl;
@@ -163,9 +163,9 @@ void Electeur::vote(const SOCKET &ourSocket, int nbCandidates)
 	} 
 	while (iChoice < 1 || iChoice > nbCandidates);
 	
-	itoa(iChoice, cChoice, 10);
+	itoa(iChoice - 1, cChoice, 10);
 
-	returnValue = send(ourSocket, cChoice, sizeof(cChoice), 0);
+	returnValue = send(ourSocket, cChoice, sizeof(char[2]), 0);
 
 	if (returnValue == SOCKET_ERROR)
 	{
@@ -174,11 +174,10 @@ void Electeur::vote(const SOCKET &ourSocket, int nbCandidates)
 		cleanup(errorMsg);
 	}
 
-	returnValue = recv(ourSocket, ack, sizeof(ack), 0);
+	returnValue = recv(ourSocket, ack, sizeof(char[20]), 0);
 
 	printf("%s", ack);
 }
-
 
 void Electeur::cleanup(std::string errorMsg)
 {
