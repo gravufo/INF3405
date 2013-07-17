@@ -39,7 +39,7 @@ void Electeur::createServerConnection(SOCKET &ourSocket)
 	int returnValue;
 	WSADATA wsaData;
 	int random;
-	char* port = new char[256];
+	char port[256];
 	char errorMsg[100];
 
 	ZeroMemory( &hints, sizeof(hints));
@@ -116,13 +116,11 @@ void Electeur::createServerConnection(SOCKET &ourSocket)
 	}while(returnValue == SOCKET_ERROR);
 
 	freeaddrinfo(ip);
-
-	delete port;
 }
 
 void Electeur::getCandidateList(const SOCKET &ourSocket, int& nbCandidates)
 {
-	char* buffer = new char[256];
+	char buffer[256];
 
 	int returnValue = recv(ourSocket, buffer, sizeof(char[256]), 0);
 	
@@ -151,21 +149,25 @@ void Electeur::getCandidateList(const SOCKET &ourSocket, int& nbCandidates)
 
 void Electeur::vote(const SOCKET &ourSocket, int nbCandidates)
 {
-	int iChoice, returnValue;
-	char* cChoice = new char[2];
-	char* errorMsg = new char[256];
-	char* ack = new char[20];
+	int iChoice,
+		returnValue;
 
-	do
-	{
+	char cChoice[2],
+		errorMsg[256],
+		ack[20];
+
+	//do
+	//{
 		std::cout << "Veuillez entrer le chiffre correspondant au candidat choisi: ";
 		std::cin >> iChoice;
-	} 
-	while (iChoice < 1 || iChoice > nbCandidates);
+	//}
+	//while (iChoice < 1 || iChoice > nbCandidates);
 	
 	itoa(iChoice - 1, cChoice, 10);
+	cChoice[1] = cChoice[0];
+	cChoice[0] = 'c';
 
-	returnValue = send(ourSocket, cChoice, sizeof(char[2]), 0);
+	returnValue = send(ourSocket, cChoice, sizeof(cChoice), 0);
 
 	if (returnValue == SOCKET_ERROR)
 	{
@@ -185,5 +187,5 @@ void Electeur::cleanup(std::string errorMsg)
 
 	std::cout << errorMsg;
 
-	exit(0);
+	exit(EXIT_SUCCESS);
 }

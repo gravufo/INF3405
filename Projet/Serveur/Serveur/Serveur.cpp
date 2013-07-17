@@ -59,9 +59,9 @@ int main()
 
 	semLogFile = CreateSemaphore(NULL, 1, 1, NULL);
 
-	if(semLogFile == NULL) 
+	if(semLogFile == NULL || semCandidatesScore == NULL) 
 	{
-		printf("CreateSemaphore error: %d\n", GetLastError());
+		printf("CreateSemaphore error in main thread/function.\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -99,6 +99,8 @@ void readCandidateFile()
 			file >> buffer;
 			candidates[nbCandidates++] = buffer; 
 		}
+
+		file.close();
 	}
 }
 
@@ -110,7 +112,7 @@ void initialiseTimer()
 	GetLocalTime(&time);
 	char buffer[BUFSIZ];
 
-	sprintf(buffer, "%.4d-%.4d-%.4d %d::%d::%d", time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond);
+	sprintf(buffer, "%.4d-%.4d-%.4d %d::%d::%d\n", time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond);
 	writeLog(buffer);
 }
 
@@ -132,18 +134,19 @@ void writeLog(std::string str)
 
 void writeResults()
 {
-	char* buffer = new char[256];
+	char buffer[256];
 	std::ofstream resultsFile;
 
 	resultsFile.open(RESULTS_FILE);
 
 	if(!resultsFile.fail())
 	{
-		int winnerIndex, score = 0;
-		// TODO : find the winner and display the results (both in the file AND the server console)
+		int winnerIndex,
+			score = 0;
+
 		for (int i = 0; i < nbCandidates; i++)
 		{
-			sprintf(buffer, "Candidat #%d : %s\tNombre de votes :\t%d\n", i + 1, candidates[i], candidatesScore[i]);
+			sprintf(buffer, "Candidat #%d : %s\tNombre de votes :\t%i\n", i + 1, candidates[i].c_str(), candidatesScore[i]);
 			resultsFile << buffer;
 			printf(buffer);
 
@@ -154,16 +157,18 @@ void writeResults()
 			}
 		}
 
-		sprintf(buffer, "\nLe gagnant est : %s avec %d votes.\n", candidates[winnerIndex], candidatesScore[winnerIndex]);
+		sprintf(buffer, "\nLe gagnant est : %s avec %i vote(s).\n", candidates[winnerIndex].c_str(), candidatesScore[winnerIndex]);
 		resultsFile << buffer;
 		printf(buffer);
+
+		resultsFile.close();
 	}
 }
 
 DWORD WINAPI timer()
 {
 	Sleep(MAX_TIME_MINUTES * 60 * 1000);
-	printf("done sleeping");
+	printf("Periode de vote ecoulee!\n");
 	terminateServer();
 
 	return EXIT_SUCCESS;
@@ -194,7 +199,7 @@ void initialiseConnection()
 
 	if (iResult != NO_ERROR)
 	{
-		std::cerr << "Error at WSAStartup()\n" << std::endl;
+		printf("Error at WSAStartup()\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -231,7 +236,7 @@ void initialiseConnection()
 
 		if (bind(serverSocket[i], (SOCKADDR*) &service, sizeof(service)) == SOCKET_ERROR)
 		{
-			//std::cerr << WSAGetLastErrorMessage("bind() failed.") << std::endl;
+			printf("Socket bind failed.\n");
 			while(i >= 0)
 				closesocket(serverSocket[i--]);
 			WSACleanup();
@@ -241,7 +246,7 @@ void initialiseConnection()
 		// Listen for incoming connection requests.on the created socket
 		if (listen(serverSocket[i], 30) == SOCKET_ERROR)
 		{
-			//std::cerr << WSAGetLastErrorMessage("Error listening on socket.") << std::endl;
+			printf("Error listening on socket.\n");
 			closesocket(serverSocket[i]);
 			WSACleanup();
 			exit(EXIT_FAILURE);
@@ -251,36 +256,33 @@ void initialiseConnection()
 
 DWORD WINAPI acceptConnection(void* id)
 {
-	printf("En attente des connections des clients\n\n");
+	printf("%i : En attente des connections des clients\n\n", (int)id);
 
 	while (true)
 	{
-		sockaddr_in sinRemote;
+		struct sockaddr_in sinRemote;
 		pInfoSocket in = new infoSocket;
-		
-		int nAddrSize = sizeof(sinRemote);
 
 		// Create a SOCKET for accepting incoming requests. Accept the connection.
-		SOCKET ourSocket = accept(serverSocket[(int)id], (sockaddr*)&sinRemote, &nAddrSize);
-		
-		in->sockAddrIn = &sinRemote;
-		in->socket = ourSocket;
+		SOCKET ourSocket = accept(serverSocket[(int)id], NULL, NULL);
 
-		if (in->socket != INVALID_SOCKET)
+		if (ourSocket != INVALID_SOCKET)
 		{
-			//printf("Connection acceptee de : %s:%s.\n", inet_ntoa(in->sockAddrIn->sin_addr), ntohs(in->sockAddrIn->sin_port));
-			const char* ipAddress = inet_ntoa(in->sockAddrIn->sin_addr);
-			u_short port = ntohs(in->sockAddrIn->sin_port);
+			socklen_t len = sizeof(sinRemote);
+			getsockname(ourSocket, (sockaddr*)&sinRemote, &len);
 
-			//printf("Connection acceptee de : %s:%u.\n", ipAddress, port);
-			std::cout << "Connection acceptee de : " << ipAddress << ":" << port << std::endl;
+			in->sockAddrIn = &sinRemote;
+			in->socket = ourSocket;
+
+			printf("Connection acceptee de : %s:%i.\n", inet_ntoa(sinRemote.sin_addr), ntohs(sinRemote.sin_port));
+
 			//TODO erreur quand vient le temps d'afficher, à revoir plus tard...
 
 			processingTID[(int)id] = CreateThread(0, 0, processVote, in, 0, 0);
 		}
 		else
 		{
-			std::cerr << "Echec d'une connection" << std::endl;
+			printf("Echec d'une connection\n");
 		}
 	}
 
@@ -299,7 +301,6 @@ DWORD WINAPI processVote(LPVOID lpv)
 void sendCandidateList(pInfoSocket info)
 {
 	std::string buffer;
-	char* cBuffer = new char[256];
 
 	for (int i = 0; i < nbCandidates; i++)
 	{
@@ -308,37 +309,39 @@ void sendCandidateList(pInfoSocket info)
 	}
 
 	buffer += ';';
-	cBuffer = const_cast<char*>(buffer.c_str());
-	int sizeBuffer = buffer.length();
 
-	send(info->socket, cBuffer, sizeBuffer, 0);
+	send(info->socket, buffer.c_str(), buffer.length(), 0);
 
 	// TODO add return value verification
 }
 
 void receiveVote(pInfoSocket info)
 {
-	char* buffer = new char[2];
-	char* valid = new char[20];
+	char buffer[100];
+	char cBuffer[2];
+	char valid[20];
 
 	int vote;
 
-	recv(info->socket, buffer, sizeof(char[2]), 0);
+	recv(info->socket, cBuffer, sizeof(cBuffer), 0);
 	// TODO add return value verification
 
+
+	*buffer = cBuffer[1];
+	
 	vote = atoi(buffer);
 
 	// Enregistrement du vote
-	if( vote >= 0 && vote < nbCandidates )
+	if(vote >= 0 && vote < nbCandidates && cBuffer[0] == 'c')
 	{
 		WaitForSingleObject(semCandidatesScore, INFINITE);
 		++candidatesScore[vote];
 		ReleaseSemaphore(semCandidatesScore, 1, NULL);
-		valid = "VOTE VALIDE";
+		strcpy(valid, "VOTE VALIDE\n");
 	}
 	else
 	{
-		valid = "VOTE NON-VALIDE";
+		strcpy(valid, "VOTE NON-VALIDE\n");
 	}
 
 	send(info->socket, valid, sizeof(char[20]), 0);
@@ -346,17 +349,17 @@ void receiveVote(pInfoSocket info)
 	SYSTEMTIME time;
 	GetLocalTime(&time);
 
-	char port[NI_MAXSERV];
-	char* endPtr;
+	//char port[NI_MAXSERV];
+	//char* endPtr;
 
-	getnameinfo((struct sockaddr*)info->sockAddrIn, sizeof(struct sockaddr), NULL, NULL, port, NI_MAXSERV, NULL);
+	//getnameinfo((struct sockaddr*)info->sockAddrIn, sizeof(struct sockaddr), NULL, NULL, port, NI_MAXSERV, NULL);
 	
 	//buffer = "test";
 	/* TODO plante ici ... problème avec le info->(member)->wtv
 	sprintf(buffer, "%s:%s %.4d-%.4d-%.4d %d::%d::%d %s", inet_ntoa(info->sockAddrIn->sin_addr), 
 			ntohs(info->sockAddrIn->sin_port), time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond, valid);*/
-	sprintf(buffer, "%s:%ld %.2d-%.2d-%.2d %.2d:%.2d:%.2d %s\n", inet_ntoa(info->sockAddrIn->sin_addr), 
-			strtol(port, &endPtr, 10), time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond, valid);
+	sprintf(buffer, "%s:%i %.2d-%.2d-%.2d %.2d:%.2d:%.2d %s\n", inet_ntoa(info->sockAddrIn->sin_addr), 
+		ntohs(info->sockAddrIn->sin_port), time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond, valid);
 
 	writeLog(buffer);
 
@@ -364,7 +367,7 @@ void receiveVote(pInfoSocket info)
 	printf(buffer);
 }
 
-// TODO : close all the files
-// make sure all pointers are changed (if possible) to non-dynamic solutions to prevent memory leaks
-// verify why the port is fucked up <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< mémé arrows
+// TODO : DONE close all the files
+// DONE make sure all pointers are changed (if possible) to non-dynamic solutions to prevent memory leaks
+// DONE verify why the port is fucked up <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< mémé arrows
 // Verifier la deconnexion du client/serveur
