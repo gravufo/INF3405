@@ -1,3 +1,7 @@
+# Custom for this project
+log.txt
+resultats.txt
+
 # Compiled Object files
 *.slo
 *.lo

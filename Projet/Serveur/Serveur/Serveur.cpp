@@ -276,8 +276,6 @@ DWORD WINAPI acceptConnection(void* id)
 
 			printf("Connection acceptee de : %s:%i.\n", inet_ntoa(sinRemote.sin_addr), ntohs(sinRemote.sin_port));
 
-			//TODO erreur quand vient le temps d'afficher, à revoir plus tard...
-
 			processingTID[(int)id] = CreateThread(0, 0, processVote, in, 0, 0);
 		}
 		else
@@ -349,15 +347,6 @@ void receiveVote(pInfoSocket info)
 	SYSTEMTIME time;
 	GetLocalTime(&time);
 
-	//char port[NI_MAXSERV];
-	//char* endPtr;
-
-	//getnameinfo((struct sockaddr*)info->sockAddrIn, sizeof(struct sockaddr), NULL, NULL, port, NI_MAXSERV, NULL);
-	
-	//buffer = "test";
-	/* TODO plante ici ... problème avec le info->(member)->wtv
-	sprintf(buffer, "%s:%s %.4d-%.4d-%.4d %d::%d::%d %s", inet_ntoa(info->sockAddrIn->sin_addr), 
-			ntohs(info->sockAddrIn->sin_port), time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond, valid);*/
 	sprintf(buffer, "%s:%i %.2d-%.2d-%.2d %.2d:%.2d:%.2d %s\n", inet_ntoa(info->sockAddrIn->sin_addr), 
 		ntohs(info->sockAddrIn->sin_port), time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond, valid);
 
@@ -370,4 +359,6 @@ void receiveVote(pInfoSocket info)
 // TODO : DONE close all the files
 // DONE make sure all pointers are changed (if possible) to non-dynamic solutions to prevent memory leaks
 // DONE verify why the port is fucked up <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< mémé arrows
-// Verifier la deconnexion du client/serveur
+// DONE Verifier la deconnexion du client/serveur
+// Check the log output (append instead of overwrite)
+// Find another way to terminate the threads to prevent message flood
