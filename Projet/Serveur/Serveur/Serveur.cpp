@@ -112,13 +112,13 @@ void initialiseTimer()
 	GetLocalTime(&time);
 	char buffer[BUFSIZ];
 
-	sprintf(buffer, "%.4d-%.4d-%.4d %d::%d::%d\n", time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond);
+	sprintf(buffer, "START %.2d-%.2d-%.2d %d:%d::%d\n\n", time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond);
 	writeLog(buffer);
 }
 
 void writeLog(std::string str)
 {
-	logFile.open(LOG_FILE);
+	logFile.open(LOG_FILE, std::ios::app);
 
 	if(!logFile.fail())
 	{
@@ -156,8 +156,10 @@ void writeResults()
 				winnerIndex = i;
 			}
 		}
-
-		sprintf(buffer, "\nLe gagnant est : %s avec %i vote(s).\n", candidates[winnerIndex].c_str(), candidatesScore[winnerIndex]);
+		if(score != 0)
+			sprintf(buffer, "\nLe gagnant est : %s avec %i vote(s).\n", candidates[winnerIndex].c_str(), candidatesScore[winnerIndex]);
+		else
+			sprintf(buffer, "\nIl n'y a pas de gagnant.\n");
 		resultsFile << buffer;
 		printf(buffer);
 
@@ -191,6 +193,13 @@ void terminateServer()
 	WSACleanup();
 
 	writeResults();
+	
+	SYSTEMTIME time;
+	GetLocalTime(&time);
+	char buffer[BUFSIZ];
+
+	sprintf(buffer, "STOP %.2d-%.2d-%.2d %d:%d::%d\n\n", time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond);
+	writeLog(buffer);
 }
 
 void initialiseConnection()
@@ -204,7 +213,7 @@ void initialiseConnection()
 	}
 
 	// Recuperation de l'adresse locale
-	hostent *thisHost = (hostent*) gethostbyname("localhost");
+	hostent *thisHost = (hostent*) gethostbyname("");
 
 	char* ip = inet_ntoa(*(struct in_addr*) *thisHost->h_addr_list);
 
@@ -229,6 +238,7 @@ void initialiseConnection()
 		sockaddr_in service;
 		service.sin_family = AF_INET;
 		service.sin_addr.s_addr = inet_addr(ip);
+		service.sin_addr.s_addr = htonl(INADDR_ANY);
 
 		port = 5000 + i;
 
@@ -244,7 +254,7 @@ void initialiseConnection()
 		}
 
 		// Listen for incoming connection requests.on the created socket
-		if (listen(serverSocket[i], 30) == SOCKET_ERROR)
+		if (listen(serverSocket[i], 1) == SOCKET_ERROR)
 		{
 			printf("Error listening on socket.\n");
 			closesocket(serverSocket[i]);
@@ -277,10 +287,6 @@ DWORD WINAPI acceptConnection(void* id)
 			printf("Connection acceptee de : %s:%i.\n", inet_ntoa(sinRemote.sin_addr), ntohs(sinRemote.sin_port));
 
 			processingTID[(int)id] = CreateThread(0, 0, processVote, in, 0, 0);
-		}
-		else
-		{
-			printf("Echec d'une connection\n");
 		}
 	}
 
@@ -342,12 +348,12 @@ void receiveVote(pInfoSocket info)
 		strcpy(valid, "VOTE NON-VALIDE\n");
 	}
 
-	send(info->socket, valid, sizeof(char[20]), 0);
+	send(info->socket, valid, sizeof(valid), 0);
 	
 	SYSTEMTIME time;
 	GetLocalTime(&time);
 
-	sprintf(buffer, "%s:%i %.2d-%.2d-%.2d %.2d:%.2d:%.2d %s\n", inet_ntoa(info->sockAddrIn->sin_addr), 
+	sprintf(buffer, "CLIENT %s:%i %.2d-%.2d-%.2d %.2d:%.2d::%.2d %s\n", inet_ntoa(info->sockAddrIn->sin_addr), 
 		ntohs(info->sockAddrIn->sin_port), time.wDay, time.wMonth, time.wYear, time.wHour, time.wMinute, time.wSecond, valid);
 
 	writeLog(buffer);
@@ -360,5 +366,5 @@ void receiveVote(pInfoSocket info)
 // DONE make sure all pointers are changed (if possible) to non-dynamic solutions to prevent memory leaks
 // DONE verify why the port is fucked up <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< mémé arrows
 // DONE Verifier la deconnexion du client/serveur
-// Check the log output (append instead of overwrite)
-// Find another way to terminate the threads to prevent message flood
+// DONE Check the log output (append instead of overwrite)
+// DONE(ish) Find another way to terminate the threads to prevent message flood

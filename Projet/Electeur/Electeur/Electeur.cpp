@@ -65,8 +65,7 @@ void Electeur::createServerConnection(SOCKET &ourSocket)
 	}
 
 	std::cout << "Veuillez entrer l'adresse IP du serveur\n";
-	/*std::cin >> sip; TODO : ne pas oublier de remettre cette ligne sans commentaire et effacer la suivante*/
-	sip = "127.0.0.1"; // LOCALHOST
+	std::cin >> sip;
 
 	do
 	{
@@ -122,7 +121,7 @@ void Electeur::getCandidateList(const SOCKET &ourSocket, int& nbCandidates)
 {
 	char buffer[256];
 
-	int returnValue = recv(ourSocket, buffer, sizeof(char[256]), 0);
+	int returnValue = recv(ourSocket, buffer, sizeof(buffer), 0);
 	
 	if (returnValue <= 0)
 	{
@@ -176,7 +175,7 @@ void Electeur::vote(const SOCKET &ourSocket, int nbCandidates)
 		cleanup(errorMsg);
 	}
 
-	returnValue = recv(ourSocket, ack, sizeof(char[20]), 0);
+	returnValue = recv(ourSocket, ack, sizeof(ack), 0);
 
 	printf("%s", ack);
 }
