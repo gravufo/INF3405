@@ -155,12 +155,15 @@ void Electeur::vote(const SOCKET &ourSocket, int nbCandidates)
 		errorMsg[256],
 		ack[20];
 
-	//do
-	//{
+	do
+	{
 		std::cout << "Veuillez entrer le chiffre correspondant au candidat choisi: ";
 		std::cin >> iChoice;
-	//}
-	//while (iChoice < 1 || iChoice > nbCandidates);
+
+		if(iChoice < 1)
+			std::cout << "Erreur: La valeur doit etre plus grande que 0. Veuillez essayer de nouveau." << std::endl;
+	}
+	while (iChoice < 1);
 	
 	itoa(iChoice - 1, cChoice, 10);
 	cChoice[1] = cChoice[0];

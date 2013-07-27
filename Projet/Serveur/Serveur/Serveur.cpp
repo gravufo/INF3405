@@ -143,6 +143,8 @@ void writeResults()
 	{
 		int winnerIndex,
 			score = 0;
+		bool tie = false;
+		std::string winners = "";
 
 		for (int i = 0; i < nbCandidates; i++)
 		{
@@ -154,12 +156,29 @@ void writeResults()
 			{
 				score = candidatesScore[i];
 				winnerIndex = i;
+				winners = candidates[i];
 			}
 		}
-		if(score != 0)
-			sprintf(buffer, "\nLe gagnant est : %s avec %i vote(s).\n", candidates[winnerIndex].c_str(), candidatesScore[winnerIndex]);
+
+		for(int i = 0; i < nbCandidates; i++)
+		{
+			if(i != winnerIndex && candidatesScore[i] == score)
+			{
+				winners += ", ";
+				winners += candidates[i];
+
+				tie = true;
+			}
+		}
+
+
+		if(score != 0 && !tie)
+			sprintf(buffer, "\nLe gagnant est : %s avec %i vote(s).\n", winners.c_str(), score);
+		else if(score != 0 && tie)
+			sprintf(buffer, "\nLes gagnants sont : %s avec %i vote(s).\n", winners.c_str(), score);
 		else
 			sprintf(buffer, "\nIl n'y a pas de gagnant.\n");
+
 		resultsFile << buffer;
 		printf(buffer);
 
@@ -170,7 +189,7 @@ void writeResults()
 DWORD WINAPI timer()
 {
 	Sleep(MAX_TIME_MINUTES * 60 * 1000);
-	printf("Periode de vote ecoulee!\n");
+	printf("Periode de vote ecoulee! Voici les resultats:\n\n");
 	terminateServer();
 
 	return EXIT_SUCCESS;
@@ -181,8 +200,8 @@ void terminateServer()
 	// TODO Close handles...
 	for(int i = 0; i <= MAX_SOCKETS; ++i)
 	{
-		TerminateThread(&incomingTID[i], NULL);
 		closesocket(serverSocket[i]);
+		TerminateThread(&incomingTID[i], NULL);
 	}
 
 	for(int i = 0; i <= MAX_SOCKETS; ++i)
@@ -299,6 +318,8 @@ DWORD WINAPI processVote(LPVOID lpv)
 	sendCandidateList(info);
 	receiveVote(info);
 
+	closesocket(info->socket);
+
 	return EXIT_SUCCESS;
 }
 
@@ -361,10 +382,3 @@ void receiveVote(pInfoSocket info)
 	// for debug 
 	printf(buffer);
 }
-
-// TODO : DONE close all the files
-// DONE make sure all pointers are changed (if possible) to non-dynamic solutions to prevent memory leaks
-// DONE verify why the port is fucked up <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< mémé arrows
-// DONE Verifier la deconnexion du client/serveur
-// DONE Check the log output (append instead of overwrite)
-// DONE(ish) Find another way to terminate the threads to prevent message flood
