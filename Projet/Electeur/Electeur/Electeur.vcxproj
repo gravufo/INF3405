@@ -77,7 +77,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Electeur.cpp" />
-    <ClCompile Include="ThreadsElecteurs.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Electeur.h" />

@@ -6,13 +6,13 @@
 
 // link with Ws2_32.lib
 #pragma comment( lib, "ws2_32.lib" )
+#pragma warning(disable: 4996)
 
 class Electeur
 {
 public:
 	Electeur();
-	
-	static DWORD WINAPI initThread();
+
 	void initiateVote();
 
 private:

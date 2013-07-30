@@ -1,11 +1,6 @@
 #include "Electeur.h"
 
-Electeur::Electeur()
-{
-
-}
-
-DWORD WINAPI Electeur::initThread()
+int main()
 {
 	Electeur* e = new Electeur();
 	e->initiateVote();
@@ -13,21 +8,32 @@ DWORD WINAPI Electeur::initThread()
 	return EXIT_SUCCESS;
 }
 
+Electeur::Electeur()
+{
+
+}
+
 void Electeur::initiateVote()
 {
 	SOCKET ourSocket;
 	int nbCandidates = 1; // nombre de candidats minimum
 
+	// Initialisation du "seed" pour la fonction random (pour simuler la partie aléatoire)
 	srand((unsigned int) time(NULL));
 
+	// Créer la connexion au server
 	createServerConnection(ourSocket);
 
+	// Obtenir la liste des candidats
 	getCandidateList(ourSocket, nbCandidates);
 
+	// Obtenir le choix de l'usager et l'envoyer au server
 	vote(ourSocket, nbCandidates);
 
+	// Fermer le socket principal
 	closesocket(ourSocket);
 
+	// Faire les opérations nécessaires pour terminer le programme
 	cleanup("");
 }
 
@@ -72,7 +78,7 @@ void Electeur::createServerConnection(SOCKET &ourSocket)
 		do
 		{
 
-			// Determiner quel port utiliser
+			// Determiner quel port utiliser de façon aléatoire
 			random = 5000 + rand() % 51;
 
 			itoa(random, port, 10);
@@ -121,6 +127,7 @@ void Electeur::getCandidateList(const SOCKET &ourSocket, int& nbCandidates)
 {
 	char buffer[256];
 
+	// Réception de la liste des candidats
 	int returnValue = recv(ourSocket, buffer, sizeof(buffer), 0);
 	
 	if (returnValue <= 0)
@@ -130,7 +137,7 @@ void Electeur::getCandidateList(const SOCKET &ourSocket, int& nbCandidates)
 		cleanup(errorMsg);
     }
 
-	//Affichage de la liste des candidats
+	// Affichage de la liste des candidats
 	for(int characterCounter = 0; buffer[characterCounter] != ';'; ++characterCounter)
 	{
 		std::string currentName = "";
@@ -155,6 +162,7 @@ void Electeur::vote(const SOCKET &ourSocket, int nbCandidates)
 		errorMsg[256],
 		ack[20];
 
+	// Recevoir le choix de l'usager
 	do
 	{
 		std::cout << "Veuillez entrer le chiffre correspondant au candidat choisi: ";
@@ -165,10 +173,12 @@ void Electeur::vote(const SOCKET &ourSocket, int nbCandidates)
 	}
 	while (iChoice < 1);
 	
+	// Standardiser le message pour usage sur le serveur (-1) et encoder avec 'c'
 	itoa(iChoice - 1, cChoice, 10);
 	cChoice[1] = cChoice[0];
 	cChoice[0] = 'c';
 
+	// Envoyer le vote au serveur
 	returnValue = send(ourSocket, cChoice, sizeof(cChoice), 0);
 
 	if (returnValue == SOCKET_ERROR)
@@ -178,7 +188,15 @@ void Electeur::vote(const SOCKET &ourSocket, int nbCandidates)
 		cleanup(errorMsg);
 	}
 
+	// Attendre le message de confirmation (ack)
 	returnValue = recv(ourSocket, ack, sizeof(ack), 0);
+
+	if (returnValue == SOCKET_ERROR)
+	{
+		sprintf(errorMsg, "Erreur du recv: %d\n", WSAGetLastError());
+		closesocket(ourSocket);
+		cleanup(errorMsg);
+	}
 
 	printf("%s", ack);
 }
