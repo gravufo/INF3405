@@ -11,7 +11,7 @@
 #pragma warning(disable: 4996)
 
 // Nombre maximal de minutes durant lesquelle on peut accepter les connexions
-#define MAX_TIME_MINUTES 1
+#define MAX_TIME_MINUTES 5
 
 // Nombre maximal de candidats
 #define MAX_CANDIDATES 50
@@ -326,13 +326,13 @@ void initialiseConnection()
 			WSACleanup();
 			exit(EXIT_FAILURE);
 		}
+
+		printf("En attente des connexions des clients\n\n");
 	}
 }
 
 DWORD WINAPI acceptConnection(void* id)
 {
-	printf("%i : En attente des connections des clients\n\n", (int)id);
-
 	while (true)
 	{
 		struct sockaddr_in sinRemote;
@@ -349,7 +349,7 @@ DWORD WINAPI acceptConnection(void* id)
 			in->sockAddrIn = &sinRemote;
 			in->socket = ourSocket;
 
-			printf("Connection acceptee de : %s:%i.\n", inet_ntoa(sinRemote.sin_addr), ntohs(sinRemote.sin_port));
+			printf("Connexion acceptee de : %s:%i.\n", inet_ntoa(sinRemote.sin_addr), ntohs(sinRemote.sin_port));
 
 			// Créer un thread pour cette connexion en envoyant la structure pInfoSocket en paramètre et traiter le vote
 			processingTID[(int)id] = CreateThread(0, 0, processVote, in, 0, 0);
